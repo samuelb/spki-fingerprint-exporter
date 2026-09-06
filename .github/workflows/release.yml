@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GO_VERSION: '1.25'
+  GO_VERSION: '1.26'
   DOCKER_IMAGES: |
     basa/spki-fingerprint-exporter
     ghcr.io/${{ github.repository }}
