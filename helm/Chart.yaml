@@ -1,6 +1,6 @@
 apiVersion: v2
 type: application
-appVersion: "0.7.1"
+appVersion: "0.7.2"
 description: A Helm chart for spki-fingerprint-exporter
 name: spki-fingerprint-exporter
 home: https://github.com/samuelb/spki-fingerprint-exporter
@@ -8,4 +8,4 @@ home: https://github.com/samuelb/spki-fingerprint-exporter
 # annotation, which links the ghcr.io package to this repository.
 sources:
   - https://github.com/samuelb/spki-fingerprint-exporter
-version: 0.7.1
+version: 0.7.2
