@@ -1,14 +1,33 @@
+# Minor/patch bumps are grouped into a single weekly PR per ecosystem to keep
+# the noise down; majors stay separate since they need a closer look.
 version: 2
 updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
+    assignees:
+      - "samuelb"
+    groups:
+      gomod-minor-patch:
+        update-types: ["minor", "patch"]
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    assignees:
+      - "samuelb"
+    groups:
+      actions-minor-patch:
+        update-types: ["minor", "patch"]
+
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
+    assignees:
+      - "samuelb"
+    groups:
+      docker-minor-patch:
+        update-types: ["minor", "patch"]
