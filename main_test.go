@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/x509"
@@ -306,6 +307,61 @@ func TestProbeHandler(t *testing.T) {
 			t.Errorf("body should contain probe_success 0, got:\n%s", body)
 		}
 	})
+}
+
+// captureLogs routes the default logger into a buffer at debug level for
+// the duration of the test.
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	original := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(original) })
+	return &buf
+}
+
+func TestRunProbeLogLevels(t *testing.T) {
+	ts := httptest.NewTLSServer(http.NotFoundHandler())
+	defer ts.Close()
+
+	// Reserve a port and close the listener so the probe is refused.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	refused := l.Addr().String()
+	if err := l.Close(); err != nil {
+		t.Fatalf("failed to close listener: %v", err)
+	}
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	tests := []struct {
+		name    string
+		ctx     context.Context
+		target  string
+		success bool
+		level   string
+	}{
+		{"success", context.Background(), ts.Listener.Addr().String(), true, "level=DEBUG"},
+		{"invalid target", context.Background(), "example.com", false, "level=WARN"},
+		{"unreachable target", context.Background(), refused, false, "level=WARN"},
+		{"caller went away", cancelled, refused, false, "level=DEBUG"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			logs := captureLogs(t)
+			result := runProbe(test.ctx, test.target, 5*time.Second)
+			if result.success != test.success {
+				t.Errorf("success = %v, want %v", result.success, test.success)
+			}
+			if got := logs.String(); strings.Count(got, "level=") != 1 || !strings.Contains(got, test.level) {
+				t.Errorf("want exactly one log line at %s, got:\n%s", test.level, got)
+			}
+		})
+	}
 }
 
 func TestProbeHandlerConcurrencyLimit(t *testing.T) {

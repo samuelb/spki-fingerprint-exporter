@@ -122,7 +122,7 @@ an error.
 | `LISTEN_ADDRESS` | Address and port to listen on, e.g. `127.0.0.1:9000`. `:3000` listens on all interfaces | `:3000` |
 | `DEFAULT_TIMEOUT` | Probe timeout for requests that do not come from Prometheus (see below). Integer seconds or a Go duration (`750ms`, `15s`) | `10` |
 | `MAX_CONCURRENT_PROBES` | Maximum number of probes running at the same time. Requests beyond the limit get HTTP 503 | `64` |
-| `LOG_LEVEL` | `debug`, `info`, `warn` or `error`. Failed probes are logged at `error` with the reason | `info` |
+| `LOG_LEVEL` | `debug`, `info`, `warn` or `error`. Failed probes are logged at `warn` with the reason; successful probes, and probes whose caller disconnected, at `debug` | `info` |
 | `LOG_FORMAT` | `text` or `json` (logs go to stderr) | `text` |
 | `WEB_CONFIG_FILE` | Path to an [exporter-toolkit web config](https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md) that enables TLS and/or basic auth on the exporter's own listener | unset |
 

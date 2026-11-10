@@ -133,7 +133,10 @@ func (res probeResult) registry() *prometheus.Registry {
 	return registry
 }
 
-// runProbe probes rawTarget and reports the outcome.
+// runProbe probes rawTarget and reports the outcome. Failures are logged
+// at warn level: a failing target is reported on every scrape, and
+// probe_success already carries the signal. A probe whose caller went
+// away is not a target failure and is only logged at debug level.
 func runProbe(ctx context.Context, rawTarget string, timeout time.Duration) (res probeResult) {
 	start := time.Now()
 	defer func() {
@@ -142,16 +145,21 @@ func runProbe(ctx context.Context, rawTarget string, timeout time.Duration) (res
 
 	target, err := parseTarget(rawTarget)
 	if err != nil {
-		slog.Error("Failed to parse target", "target", rawTarget, "error", err)
+		slog.Warn("Failed to parse target", "target", rawTarget, "error", err)
 		return res
 	}
 
 	fingerprint, err := getFingerprint(ctx, target, timeout)
 	if err != nil {
-		slog.Error("Failed to get SPKI fingerprint", "target", target, "error", err)
+		level := slog.LevelWarn
+		if errors.Is(ctx.Err(), context.Canceled) {
+			level = slog.LevelDebug
+		}
+		slog.Log(ctx, level, "Failed to get SPKI fingerprint", "target", target, "error", err)
 		return res
 	}
 
+	slog.Debug("Probe succeeded", "target", target, "fingerprint", fingerprint, "duration", time.Since(start))
 	res.success = true
 	res.fingerprint = fingerprint
 	res.target = target
@@ -248,7 +256,7 @@ func probeHandler(config Config, metrics *probeMetrics) http.HandlerFunc {
 
 		timeout, err := getScrapeTimeout(r, config.DefaultTimeout)
 		if err != nil {
-			slog.Error("Failed to get scrape timeout", "error", err)
+			slog.Warn("Failed to get scrape timeout", "error", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
