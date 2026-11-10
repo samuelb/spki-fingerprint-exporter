@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -21,7 +20,6 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -35,24 +33,6 @@ import (
 var (
 	// Version is set during build
 	Version = "dev"
-
-	spkiFingerprint = prometheus.NewDesc(
-		"spki_fingerprint",
-		"TLS certificate Subject Public Key Info (SPKI) SHA-256 fingerprint.",
-		[]string{"fingerprint", "target"}, nil,
-	)
-
-	probeSuccess = prometheus.NewDesc(
-		"probe_success",
-		"Displays whether or not the probe was a success",
-		nil, nil,
-	)
-
-	probeDuration = prometheus.NewDesc(
-		"probe_duration_seconds",
-		"Returns how long the probe took to complete in seconds",
-		nil, nil,
-	)
 
 	// Default configuration
 	defaultListenAddress = ":3000"
@@ -87,15 +67,13 @@ type Config struct {
 	WebConfigFile       string
 }
 
-type Exporter struct {
-	ctx          context.Context
-	target       string
-	timeout      time.Duration
-	once         sync.Once
-	success      bool
-	fingerprint  string
-	parsedTarget string
-	duration     time.Duration
+// probeResult is the outcome of probing a single target.
+type probeResult struct {
+	success     bool
+	fingerprint string
+	// target is the probed target in host:port form.
+	target   string
+	duration time.Duration
 }
 
 type probeMetrics struct {
@@ -128,53 +106,56 @@ func newProbeMetrics(registerer prometheus.Registerer) *probeMetrics {
 	return metrics
 }
 
-func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
-	ch <- spkiFingerprint
-	ch <- probeSuccess
-	ch <- probeDuration
+// registry returns a registry holding the metrics of this probe result.
+// spki_fingerprint is only present when the probe succeeded.
+func (res probeResult) registry() *prometheus.Registry {
+	fingerprint := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "spki_fingerprint",
+		Help: "TLS certificate Subject Public Key Info (SPKI) SHA-256 fingerprint.",
+	}, []string{"fingerprint", "target"})
+	duration := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "probe_duration_seconds",
+		Help: "Returns how long the probe took to complete in seconds",
+	})
+	success := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "probe_success",
+		Help: "Displays whether or not the probe was a success",
+	})
+
+	duration.Set(res.duration.Seconds())
+	if res.success {
+		fingerprint.WithLabelValues(res.fingerprint, res.target).Set(1)
+		success.Set(1)
+	}
+
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(fingerprint, duration, success)
+	return registry
 }
 
-func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	e.once.Do(e.runProbe)
-	if e.success {
-		ch <- prometheus.MustNewConstMetric(
-			spkiFingerprint, prometheus.GaugeValue, 1, e.fingerprint, e.parsedTarget,
-		)
-	}
-	ch <- prometheus.MustNewConstMetric(
-		probeDuration, prometheus.GaugeValue, e.duration.Seconds(),
-	)
-
-	successValue := 0.0
-	if e.success {
-		successValue = 1
-	}
-	ch <- prometheus.MustNewConstMetric(
-		probeSuccess, prometheus.GaugeValue, successValue,
-	)
-}
-
-func (e *Exporter) runProbe() {
+// runProbe probes rawTarget and reports the outcome.
+func runProbe(ctx context.Context, rawTarget string, timeout time.Duration) (res probeResult) {
 	start := time.Now()
 	defer func() {
-		e.duration = time.Since(start)
+		res.duration = time.Since(start)
 	}()
 
-	target, err := parseTarget(e.target)
+	target, err := parseTarget(rawTarget)
 	if err != nil {
-		slog.Error("Failed to parse target", "target", e.target, "error", err)
-		return
+		slog.Error("Failed to parse target", "target", rawTarget, "error", err)
+		return res
 	}
 
-	fingerprint, err := getFingerprint(e.ctx, target, e.timeout)
+	fingerprint, err := getFingerprint(ctx, target, timeout)
 	if err != nil {
 		slog.Error("Failed to get SPKI fingerprint", "target", target, "error", err)
-		return
+		return res
 	}
 
-	e.success = true
-	e.fingerprint = fingerprint
-	e.parsedTarget = target
+	res.success = true
+	res.fingerprint = fingerprint
+	res.target = target
+	return res
 }
 
 func getFingerprint(ctx context.Context, target string, timeout time.Duration) (string, error) {
@@ -201,13 +182,9 @@ func getFingerprint(ctx context.Context, target string, timeout time.Duration) (
 		return "", errors.New("no peer certificates found")
 	}
 
-	leafcert := connstate.PeerCertificates[0]
-	der, err := x509.MarshalPKIXPublicKey(leafcert.PublicKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal public key: %w", err)
-	}
-
-	hash := sha256.Sum256(der)
+	// Hash the SPKI exactly as the server sent it rather than a
+	// re-encoding of the parsed key.
+	hash := sha256.Sum256(connstate.PeerCertificates[0].RawSubjectPublicKeyInfo)
 	return base64.StdEncoding.EncodeToString(hash[:]), nil
 }
 
@@ -290,34 +267,25 @@ func probeHandler(config Config, metrics *probeMetrics) http.HandlerFunc {
 			return
 		}
 
-		exporter := &Exporter{
-			ctx:     r.Context(),
-			target:  target,
-			timeout: timeout,
-		}
-		func() {
+		result := func() probeResult {
+			// Deferred so that a panicking probe does not leak its slot.
 			defer func() {
 				<-probeSlots
 				if metrics != nil {
 					metrics.active.Dec()
 				}
 			}()
-
-			exporter.once.Do(exporter.runProbe)
-			if metrics != nil {
-				result := "failure"
-				if exporter.success {
-					result = "success"
-				}
-				metrics.total.WithLabelValues(result).Inc()
-			}
+			return runProbe(r.Context(), target, timeout)
 		}()
+		if metrics != nil {
+			outcome := "failure"
+			if result.success {
+				outcome = "success"
+			}
+			metrics.total.WithLabelValues(outcome).Inc()
+		}
 
-		registry := prometheus.NewRegistry()
-		registry.MustRegister(exporter)
-
-		h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
-		h.ServeHTTP(w, r)
+		promhttp.HandlerFor(result.registry(), promhttp.HandlerOpts{}).ServeHTTP(w, r)
 	}
 }
 
