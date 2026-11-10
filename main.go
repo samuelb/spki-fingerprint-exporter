@@ -37,6 +37,7 @@ var (
 	// Default configuration
 	defaultListenAddress = ":3000"
 	defaultTimeout       = 10 * time.Second
+	defaultMaxTimeout    = 60 * time.Second
 	defaultMaxConcurrent = 64
 	defaultLogFormat     = "text"
 	scrapeTimeoutOffset  = 500 * time.Millisecond
@@ -61,6 +62,7 @@ var (
 type Config struct {
 	ListenAddress       string
 	DefaultTimeout      time.Duration
+	MaxTimeout          time.Duration
 	MaxConcurrentProbes int
 	LogLevel            slog.Level
 	LogFormat           string
@@ -239,6 +241,10 @@ func probeHandler(config Config, metrics *probeMetrics) http.HandlerFunc {
 	if maxConcurrent <= 0 {
 		maxConcurrent = defaultMaxConcurrent
 	}
+	maxTimeout := config.MaxTimeout
+	if maxTimeout <= 0 {
+		maxTimeout = defaultMaxTimeout
+	}
 	probeSlots := make(chan struct{}, maxConcurrent)
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -254,7 +260,7 @@ func probeHandler(config Config, metrics *probeMetrics) http.HandlerFunc {
 			return
 		}
 
-		timeout, err := getScrapeTimeout(r, config.DefaultTimeout)
+		timeout, err := getScrapeTimeout(r, config.DefaultTimeout, maxTimeout)
 		if err != nil {
 			slog.Warn("Failed to get scrape timeout", "error", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -297,7 +303,11 @@ func probeHandler(config Config, metrics *probeMetrics) http.HandlerFunc {
 	}
 }
 
-func getScrapeTimeout(r *http.Request, defaultTimeout time.Duration) (time.Duration, error) {
+// getScrapeTimeout returns the probe timeout for a request. A timeout taken
+// from the Prometheus scrape header is capped at maxTimeout: the header is
+// set by the caller, and an unbounded value would let a caller hold a probe
+// slot for as long as a slow target keeps the connection open.
+func getScrapeTimeout(r *http.Request, defaultTimeout, maxTimeout time.Duration) (time.Duration, error) {
 	if v := r.Header.Get("X-Prometheus-Scrape-Timeout-Seconds"); v != "" {
 		timeoutSeconds, err := strconv.ParseFloat(v, 64)
 		if err != nil {
@@ -311,9 +321,9 @@ func getScrapeTimeout(r *http.Request, defaultTimeout time.Duration) (time.Durat
 		// shorter than twice the offset, reserve half the timeout so
 		// there is always room to report probe_success 0.
 		timeoutSeconds = math.Max(timeoutSeconds-scrapeTimeoutOffset.Seconds(), timeoutSeconds/2)
-		if timeoutSeconds >= float64(math.MaxInt64)/float64(time.Second) {
-			return 0, fmt.Errorf("scrape timeout from Prometheus header is too large: %q", v)
-		}
+		// Capping before the conversion also keeps huge values from
+		// overflowing the duration.
+		timeoutSeconds = math.Min(timeoutSeconds, maxTimeout.Seconds())
 		timeout := time.Duration(timeoutSeconds * float64(time.Second))
 		if timeout <= 0 {
 			return 0, fmt.Errorf("scrape timeout from Prometheus header is too small: %q", v)
@@ -327,6 +337,7 @@ func getConfig() (Config, error) {
 	config := Config{
 		ListenAddress:       defaultListenAddress,
 		DefaultTimeout:      defaultTimeout,
+		MaxTimeout:          defaultMaxTimeout,
 		MaxConcurrentProbes: defaultMaxConcurrent,
 		LogLevel:            slog.LevelInfo,
 		LogFormat:           defaultLogFormat,
@@ -337,11 +348,19 @@ func getConfig() (Config, error) {
 	}
 
 	if timeout := os.Getenv("DEFAULT_TIMEOUT"); timeout != "" {
-		parsedTimeout, err := parseDefaultTimeout(timeout)
+		parsedTimeout, err := parseTimeout("DEFAULT_TIMEOUT", timeout)
 		if err != nil {
 			return Config{}, err
 		}
 		config.DefaultTimeout = parsedTimeout
+	}
+
+	if timeout := os.Getenv("MAX_TIMEOUT"); timeout != "" {
+		parsedTimeout, err := parseTimeout("MAX_TIMEOUT", timeout)
+		if err != nil {
+			return Config{}, err
+		}
+		config.MaxTimeout = parsedTimeout
 	}
 
 	if value := os.Getenv("MAX_CONCURRENT_PROBES"); value != "" {
@@ -380,24 +399,26 @@ func setupLogger(config Config) {
 	slog.SetDefault(slog.New(handler))
 }
 
-func parseDefaultTimeout(value string) (time.Duration, error) {
+// parseTimeout parses the timeout in the environment variable name, given
+// as integer seconds or as a Go duration.
+func parseTimeout(name, value string) (time.Duration, error) {
 	seconds, err := strconv.ParseInt(value, 10, 64)
 	if err == nil {
 		if seconds <= 0 || seconds > int64(math.MaxInt64)/int64(time.Second) {
-			return 0, fmt.Errorf("DEFAULT_TIMEOUT must be positive and fit in a duration, got %q", value)
+			return 0, fmt.Errorf("%s must be positive and fit in a duration, got %q", name, value)
 		}
 		return time.Duration(seconds) * time.Second, nil
 	}
 	if errors.Is(err, strconv.ErrRange) {
-		return 0, fmt.Errorf("DEFAULT_TIMEOUT integer seconds value is out of range: %q", value)
+		return 0, fmt.Errorf("%s integer seconds value is out of range: %q", name, value)
 	}
 
 	timeout, err := time.ParseDuration(value)
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse DEFAULT_TIMEOUT %q: use seconds or a Go duration: %w", value, err)
+		return 0, fmt.Errorf("failed to parse %s %q: use seconds or a Go duration: %w", name, value, err)
 	}
 	if timeout <= 0 {
-		return 0, fmt.Errorf("DEFAULT_TIMEOUT must be positive, got %q", value)
+		return 0, fmt.Errorf("%s must be positive, got %q", name, value)
 	}
 	return timeout, nil
 }

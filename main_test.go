@@ -65,6 +65,7 @@ func TestParseTarget(t *testing.T) {
 
 func TestGetScrapeTimeout(t *testing.T) {
 	defaultTimeout := 10 * time.Second
+	maxTimeout := 60 * time.Second
 
 	var tests = []struct {
 		name        string
@@ -79,8 +80,10 @@ func TestGetScrapeTimeout(t *testing.T) {
 		{"zero header", "0", 0, true},
 		{"NaN header", "NaN", 0, true},
 		{"infinite header", "+Inf", 0, true},
-		{"overflowing header", "1e20", 0, true},
-		{"duration boundary header", "9223372037.354776", 0, true},
+		{"header at the cap", "60.5", maxTimeout, false},
+		{"header above the cap", "3600", maxTimeout, false},
+		{"overflowing header", "1e20", maxTimeout, false},
+		{"duration boundary header", "9223372037.354776", maxTimeout, false},
 		{"sub-nanosecond header", "1e-10", 0, true},
 		{"invalid header", "not-a-number", 0, true},
 	}
@@ -92,7 +95,7 @@ func TestGetScrapeTimeout(t *testing.T) {
 				r.Header.Set("X-Prometheus-Scrape-Timeout-Seconds", test.header)
 			}
 
-			timeout, err := getScrapeTimeout(r, defaultTimeout)
+			timeout, err := getScrapeTimeout(r, defaultTimeout, maxTimeout)
 			if test.shouldError {
 				if err == nil {
 					t.Errorf("header %q didn't error, but it should", test.header)
@@ -114,6 +117,7 @@ func TestGetConfig(t *testing.T) {
 		name           string
 		listenAddress  string
 		defaultTimeout string
+		maxTimeout     string
 		maxConcurrent  string
 		logLevel       string
 		logFormat      string
@@ -126,6 +130,7 @@ func TestGetConfig(t *testing.T) {
 			want: Config{
 				ListenAddress:       defaultListenAddress,
 				DefaultTimeout:      defaultTimeout,
+				MaxTimeout:          defaultMaxTimeout,
 				MaxConcurrentProbes: defaultMaxConcurrent,
 				LogLevel:            slog.LevelInfo,
 				LogFormat:           defaultLogFormat,
@@ -135,10 +140,12 @@ func TestGetConfig(t *testing.T) {
 			name:           "integer seconds",
 			listenAddress:  ":8080",
 			defaultTimeout: "15",
+			maxTimeout:     "2m",
 			maxConcurrent:  "8",
 			want: Config{
 				ListenAddress:       ":8080",
 				DefaultTimeout:      15 * time.Second,
+				MaxTimeout:          2 * time.Minute,
 				MaxConcurrentProbes: 8,
 				LogLevel:            slog.LevelInfo,
 				LogFormat:           defaultLogFormat,
@@ -150,6 +157,7 @@ func TestGetConfig(t *testing.T) {
 			want: Config{
 				ListenAddress:       defaultListenAddress,
 				DefaultTimeout:      750 * time.Millisecond,
+				MaxTimeout:          defaultMaxTimeout,
 				MaxConcurrentProbes: defaultMaxConcurrent,
 				LogLevel:            slog.LevelInfo,
 				LogFormat:           defaultLogFormat,
@@ -162,6 +170,7 @@ func TestGetConfig(t *testing.T) {
 			want: Config{
 				ListenAddress:       defaultListenAddress,
 				DefaultTimeout:      defaultTimeout,
+				MaxTimeout:          defaultMaxTimeout,
 				MaxConcurrentProbes: defaultMaxConcurrent,
 				LogLevel:            slog.LevelDebug,
 				LogFormat:           "json",
@@ -173,6 +182,7 @@ func TestGetConfig(t *testing.T) {
 			want: Config{
 				ListenAddress:       defaultListenAddress,
 				DefaultTimeout:      defaultTimeout,
+				MaxTimeout:          defaultMaxTimeout,
 				MaxConcurrentProbes: defaultMaxConcurrent,
 				LogLevel:            slog.LevelInfo,
 				LogFormat:           defaultLogFormat,
@@ -184,6 +194,8 @@ func TestGetConfig(t *testing.T) {
 		{name: "negative timeout", defaultTimeout: "-1s", shouldError: true},
 		{name: "overflowing seconds", defaultTimeout: "999999999999999999", shouldError: true},
 		{name: "integer parse overflow", defaultTimeout: "99999999999999999999999", shouldError: true},
+		{name: "invalid max timeout", maxTimeout: "forever", shouldError: true},
+		{name: "zero max timeout", maxTimeout: "0s", shouldError: true},
 		{name: "invalid concurrency", maxConcurrent: "many", shouldError: true},
 		{name: "zero concurrency", maxConcurrent: "0", shouldError: true},
 		{name: "invalid log level", logLevel: "verbose", shouldError: true},
@@ -194,6 +206,7 @@ func TestGetConfig(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv("LISTEN_ADDRESS", test.listenAddress)
 			t.Setenv("DEFAULT_TIMEOUT", test.defaultTimeout)
+			t.Setenv("MAX_TIMEOUT", test.maxTimeout)
 			t.Setenv("MAX_CONCURRENT_PROBES", test.maxConcurrent)
 			t.Setenv("LOG_LEVEL", test.logLevel)
 			t.Setenv("LOG_FORMAT", test.logFormat)

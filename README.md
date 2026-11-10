@@ -121,6 +121,7 @@ an error.
 |----------|-------------|---------|
 | `LISTEN_ADDRESS` | Address and port to listen on, e.g. `127.0.0.1:9000`. `:3000` listens on all interfaces | `:3000` |
 | `DEFAULT_TIMEOUT` | Probe timeout for requests that do not come from Prometheus (see below). Integer seconds or a Go duration (`750ms`, `15s`) | `10` |
+| `MAX_TIMEOUT` | Upper limit for the probe timeout a request can ask for (see below). Same format as `DEFAULT_TIMEOUT` | `60` |
 | `MAX_CONCURRENT_PROBES` | Maximum number of probes running at the same time. Requests beyond the limit get HTTP 503 | `64` |
 | `LOG_LEVEL` | `debug`, `info`, `warn` or `error`. Failed probes are logged at `warn` with the reason; successful probes, and probes whose caller disconnected, at `debug` | `info` |
 | `LOG_FORMAT` | `text` or `json` (logs go to stderr) | `text` |
@@ -133,6 +134,12 @@ value minus 0.5 s, which leaves time to return `probe_success 0` before
 Prometheus gives up. To change the probe timeout, set `scrape_timeout` in
 Prometheus. `DEFAULT_TIMEOUT` applies only to requests without that header,
 such as a manual `curl`.
+
+The header is set by whoever calls the exporter, so the timeout taken from it
+is capped at `MAX_TIMEOUT`. Without the cap, a caller could ask for an
+arbitrarily long timeout and keep a probe slot occupied for as long as a slow
+target holds the connection open. Raise `MAX_TIMEOUT` if your
+`scrape_timeout` is longer than 60 s.
 
 ### TLS and basic auth
 
