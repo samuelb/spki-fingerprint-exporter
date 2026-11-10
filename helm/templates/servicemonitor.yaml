@@ -21,12 +21,18 @@ spec:
       path: /metrics
       interval: {{ .Values.serviceMonitor.interval }}
       scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout }}
+      {{- with include "spki-fingerprint-exporter.serviceMonitor.endpointAccess" . | trim }}
+      {{- . | nindent 6 }}
+      {{- end }}
     {{- end }}
     {{- range .Values.serviceMonitor.targets }}
     - port: http
       path: /probe
       interval: {{ $.Values.serviceMonitor.interval }}
       scrapeTimeout: {{ $.Values.serviceMonitor.scrapeTimeout }}
+      {{- with include "spki-fingerprint-exporter.serviceMonitor.endpointAccess" $ | trim }}
+      {{- . | nindent 6 }}
+      {{- end }}
       params:
         target:
           - {{ . | quote }}

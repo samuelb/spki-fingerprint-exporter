@@ -64,6 +64,8 @@
         "properties": { "name": { "type": "string", "minLength": 1 } }
       }
     },
+    "extraVolumes": { "type": "array", "items": { "type": "object" } },
+    "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
     "livenessProbe": { "type": "object" },
     "readinessProbe": { "type": "object" },
     "podAnnotations": { "type": "object" },
@@ -80,6 +82,9 @@
         "scrapeTimeout": { "type": "string", "minLength": 1 },
         "additionalLabels": { "type": "object" },
         "selfMonitor": { "type": "boolean" },
+        "scheme": { "enum": ["", "http", "https"] },
+        "tlsConfig": { "type": "object" },
+        "basicAuth": { "type": "object" },
         "targets": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }

@@ -76,3 +76,21 @@ networking.k8s.io/v1beta1
 extensions/v1beta1
 {{- end -}}
 {{- end -}}
+
+{{/*
+Settings shared by every ServiceMonitor endpoint: how Prometheus reaches
+the exporter when its listener is protected by a web config.
+*/}}
+{{- define "spki-fingerprint-exporter.serviceMonitor.endpointAccess" -}}
+{{- with .Values.serviceMonitor.scheme }}
+scheme: {{ . }}
+{{- end }}
+{{- with .Values.serviceMonitor.tlsConfig }}
+tlsConfig:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .Values.serviceMonitor.basicAuth }}
+basicAuth:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}

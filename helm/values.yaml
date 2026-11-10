@@ -60,6 +60,20 @@ readinessProbe: {}
 # LISTEN_ADDRESS is managed by the chart and must not be repeated here.
 env: []
 
+# Additional volumes and volume mounts for the exporter container, e.g. to
+# mount a web config file that enables TLS and/or basic auth on the
+# exporter's listener (see "TLS and basic auth" in the chart README):
+# extraVolumes:
+#   - name: web-config
+#     secret:
+#       secretName: spki-exporter-web-config
+# extraVolumeMounts:
+#   - name: web-config
+#     mountPath: /etc/spki-exporter
+#     readOnly: true
+extraVolumes: []
+extraVolumeMounts: []
+
 # Additional annotations and labels for the pods.
 podAnnotations: {}
 podLabels: {}
@@ -86,6 +100,22 @@ serviceMonitor:
   # Also scrape the exporter's own /metrics endpoint (operational metrics
   # such as spki_fingerprint_exporter_probes_total).
   selfMonitor: true
+  # How Prometheus reaches the exporter. Set these when the exporter's
+  # listener is protected through WEB_CONFIG_FILE; they apply to every
+  # endpoint of the ServiceMonitor.
+  # scheme: https
+  # tlsConfig:
+  #   insecureSkipVerify: true
+  # basicAuth:
+  #   username:
+  #     name: spki-exporter-scrape-credentials
+  #     key: username
+  #   password:
+  #     name: spki-exporter-scrape-credentials
+  #     key: password
+  scheme: ""
+  tlsConfig: {}
+  basicAuth: {}
   # targets:
   #   - example.com:443
   #   - https://example.org
