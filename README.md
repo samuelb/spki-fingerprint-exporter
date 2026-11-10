@@ -94,8 +94,8 @@ Pass exporter settings through the chart's `env` value. See the
 [chart README](helm/README.md) for all values.
 
 **Binaries:** every [GitHub release](https://github.com/samuelb/spki-fingerprint-exporter/releases)
-includes static binaries for Linux, macOS, Windows, NetBSD and OpenBSD, the
-packaged Helm chart, and a `sha256sums.txt`.
+includes static binaries for Linux, macOS, Windows (`.exe`), NetBSD and
+OpenBSD, the packaged Helm chart, and a `sha256sums.txt`.
 
 **From source:** run `make build` (requires Go, see `go.mod`). The binary is
 written to `dist/`.
