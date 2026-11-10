@@ -100,9 +100,15 @@ prometheusRule:
   rules:
     # A key rotation ends one spki_fingerprint series and starts another
     # (the fingerprint is a label), so a change shows up as more than one
-    # series per target within the window.
+    # distinct fingerprint per target within the window. Count distinct
+    # fingerprints rather than series: a pod rollout or several replicas
+    # also create extra series (via the pod label) with the same
+    # fingerprint.
     - alert: SpkiFingerprintChanged
-      expr: count by (target) (count_over_time(spki_fingerprint[1h])) > 1
+      expr: >-
+        count by (target) (
+          count by (target, fingerprint) (count_over_time(spki_fingerprint[1h]))
+        ) > 1
       labels:
         severity: critical
       annotations:
