@@ -109,6 +109,7 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "pathType": { "enum": ["Exact", "Prefix", "ImplementationSpecific"] },
+        "className": { "type": "string" },
         "annotations": { "type": "object" },
         "hosts": {
           "type": "array",

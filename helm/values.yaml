@@ -149,6 +149,9 @@ ingress:
   # ImplementationSpecific matches the behavior of the legacy
   # extensions/v1beta1 ingress (e.g. NGINX regex paths keep working).
   pathType: ImplementationSpecific
+  # IngressClass to use (spec.ingressClassName). Leave empty for the
+  # cluster's default class.
+  className: ""
   annotations: {}
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"

@@ -76,6 +76,7 @@ port, it is derived from the URL scheme.
 | `prometheusRule.rules` | Custom alerting rules; replace the built-in ones when set | `[]` (built-in rules) |
 | `ingress.enabled` | Create an Ingress | `false` |
 | `ingress.pathType` | Ingress path type | `ImplementationSpecific` |
+| `ingress.className` | IngressClass name (`spec.ingressClassName`) | `""` (cluster default) |
 | `ingress.annotations` | Ingress annotations | `{}` |
 | `ingress.hosts` | Ingress hosts and paths | see `values.yaml` |
 | `ingress.tls` | Ingress TLS configuration | `[]` |
