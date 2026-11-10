@@ -72,7 +72,8 @@ port, it is derived from the URL scheme.
 | `serviceMonitor.basicAuth` | Basic auth credentials (Secret key references) for scraping | `{}` |
 | `prometheusRule.enabled` | Create a PrometheusRule for the Prometheus Operator | `false` |
 | `prometheusRule.additionalLabels` | Extra labels on the PrometheusRule (e.g. to match a Prometheus rule selector) | `{}` |
-| `prometheusRule.rules` | Alerting rules | changed fingerprint, failing probe, rejected probes |
+| `prometheusRule.selector` | Label matchers that scope the built-in rules to this exporter | job and namespace of the chart's ServiceMonitor |
+| `prometheusRule.rules` | Custom alerting rules; replace the built-in ones when set | `[]` (built-in rules) |
 | `ingress.enabled` | Create an Ingress | `false` |
 | `ingress.pathType` | Ingress path type | `ImplementationSpecific` |
 | `ingress.annotations` | Ingress annotations | `{}` |
@@ -97,6 +98,29 @@ Notes:
   (the chart fails rendering if you do).
 - For exporter images predating the health endpoints, set
   `healthProbes.livenessPath` and `healthProbes.readinessPath` to `/`.
+
+## Alerting rules
+
+With `prometheusRule.enabled`, the chart creates these alerts:
+
+| Alert | Fires when |
+|-------|------------|
+| `SpkiFingerprintChanged` | a target presented more than one distinct fingerprint within the last hour |
+| `SpkiProbeFailed` | a probe has been failing for 5 minutes |
+| `SpkiProbesRejected` | the exporter rejected probes because of `MAX_CONCURRENT_PROBES` |
+| `SpkiExporterDown` | Prometheus has not been able to scrape the exporter for 5 minutes |
+| `SpkiExporterAbsent` | Prometheus has had no scrape target for the exporter for 10 minutes |
+
+`probe_success` and `up` are shared metric names, so the rules only look at
+series of this exporter. By default they match the job and namespace that
+the chart's ServiceMonitor produces (`job="<fullname>"`,
+`namespace="<release namespace>"`). If you scrape the exporter through your
+own scrape config instead, set `prometheusRule.selector` to match it, for
+example `job="spki-fingerprint-exporter"`. Otherwise the rules match
+nothing and `SpkiExporterAbsent` fires.
+
+To use your own rules, set `prometheusRule.rules`. They replace the built-in
+rules and are rendered as given.
 
 ## TLS and basic auth
 

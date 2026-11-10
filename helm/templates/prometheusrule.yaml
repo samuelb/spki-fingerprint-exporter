@@ -1,7 +1,6 @@
 {{- if .Values.prometheusRule.enabled }}
-{{- if not .Values.prometheusRule.rules }}
-{{- fail "prometheusRule.rules must contain at least one rule when prometheusRule is enabled" }}
-{{- end }}
+{{- /* Braces included, so that a metric name can be followed by the selector directly. */ -}}
+{{- $selector := printf "{%s}" (include "spki-fingerprint-exporter.ruleSelector" .) }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -15,5 +14,67 @@ spec:
   groups:
     - name: {{ include "spki-fingerprint-exporter.fullname" . }}
       rules:
+        {{- if .Values.prometheusRule.rules }}
         {{- toYaml .Values.prometheusRule.rules | nindent 8 }}
+        {{- else }}
+        # A key rotation ends one spki_fingerprint series and starts another
+        # (the fingerprint is a label), so a change shows up as more than
+        # one distinct fingerprint per target within the window. Count
+        # distinct fingerprints rather than series: a pod rollout or several
+        # replicas also create extra series (via the pod label) with the
+        # same fingerprint.
+        - alert: SpkiFingerprintChanged
+          expr: |-
+            count by (target) (
+              count by (target, fingerprint) (count_over_time(spki_fingerprint{{ $selector }}[1h]))
+            ) > 1
+          labels:
+            severity: critical
+          annotations:
+            summary: {{ `SPKI fingerprint changed on {{ $labels.target }}` | quote }}
+            description: {{ `The public key presented by {{ $labels.target }} changed within the last hour. Investigate if this rotation was not expected.` | quote }}
+        - alert: SpkiProbeFailed
+          expr: probe_success{{ $selector }} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: {{ `SPKI probe failing for {{ $labels.instance }}` | quote }}
+            description: {{ `Probing {{ $labels.instance }} has been failing for 5 minutes; the target is unreachable or does not complete a TLS handshake.` | quote }}
+        - alert: SpkiProbesRejected
+          expr: increase(spki_fingerprint_exporter_rejected_probes_total{{ $selector }}[5m]) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: SPKI fingerprint exporter is rejecting probes
+            description: >-
+              The exporter hit its concurrency limit and rejected probes in
+              the last 5 minutes; raise MAX_CONCURRENT_PROBES or reduce the
+              number of targets.
+        # A probe that cannot be scraped at all (exporter down, HTTP 503 or
+        # 401) leaves no probe_success sample, so SpkiProbeFailed stays
+        # silent; up covers that case.
+        - alert: SpkiExporterDown
+          expr: up{{ $selector }} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: {{ `SPKI fingerprint exporter scrape failing for {{ $labels.instance }}` | quote }}
+            description: {{ `Prometheus has not been able to scrape {{ $labels.instance }} through the SPKI fingerprint exporter for 5 minutes; its fingerprint is not being monitored.` | quote }}
+        # No scrape target at all: the exporter has no running pods, or
+        # prometheusRule.selector does not match how it is scraped.
+        - alert: SpkiExporterAbsent
+          expr: absent(up{{ $selector }})
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: SPKI fingerprint exporter has no scrape targets
+            description: >-
+              Prometheus has had no scrape target matching the SPKI
+              fingerprint exporter for 10 minutes; no fingerprints are being
+              monitored. Check that the exporter is running and that
+              prometheusRule.selector matches its scrape job.
+        {{- end }}
 {{- end }}

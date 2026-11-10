@@ -94,3 +94,16 @@ basicAuth:
   {{- toYaml . | nindent 2 }}
 {{- end }}
 {{- end -}}
+
+{{/*
+Label matchers that scope the built-in alerting rules to this exporter.
+The chart's ServiceMonitor sets no jobLabel, so the job is the name of the
+Service.
+*/}}
+{{- define "spki-fingerprint-exporter.ruleSelector" -}}
+{{- if .Values.prometheusRule.selector -}}
+{{- .Values.prometheusRule.selector -}}
+{{- else -}}
+{{- printf "job=%q, namespace=%q" (include "spki-fingerprint-exporter.fullname" .) .Release.Namespace -}}
+{{- end -}}
+{{- end -}}

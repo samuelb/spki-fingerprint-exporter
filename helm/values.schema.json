@@ -98,6 +98,7 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "additionalLabels": { "type": "object" },
+        "selector": { "type": "string" },
         "rules": { "type": "array", "items": { "type": "object" } }
       }
     },
@@ -170,23 +171,6 @@
         "properties": {
           "serviceMonitor": {
             "properties": { "targets": { "minItems": 1 } }
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "prometheusRule": {
-            "properties": { "enabled": { "const": true } },
-            "required": ["enabled"]
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "prometheusRule": {
-            "properties": { "rules": { "minItems": 1 } }
           }
         }
       }

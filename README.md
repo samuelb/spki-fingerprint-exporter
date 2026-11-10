@@ -283,10 +283,21 @@ groups:
       - alert: SpkiProbeFailed
         expr: probe_success{job="spki-fingerprint-exporter"} == 0
         for: 5m
+
+      # The exporter itself cannot be scraped (down, HTTP 503 or 401), or
+      # Prometheus has no target for it at all. No probe_success sample is
+      # recorded in either case, so SpkiProbeFailed stays silent.
+      - alert: SpkiExporterDown
+        expr: up{job="spki-fingerprint-exporter"} == 0
+        for: 5m
+      - alert: SpkiExporterAbsent
+        expr: absent(up{job="spki-fingerprint-exporter"})
+        for: 10m
 ```
 
-Scope `probe_success` by `job` as shown: other blackbox-style exporters
-export the same metric name.
+Scope `probe_success` and `up` by `job` as shown: other exporters export the
+same metric names. The Helm chart's `prometheusRule` ships these rules
+(without the pinning example), scoped to the job of its ServiceMonitor.
 
 ## Getting the expected fingerprint
 
