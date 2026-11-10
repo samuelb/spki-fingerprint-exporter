@@ -135,8 +135,8 @@
       "required": ["enabled"],
       "properties": {
         "enabled": { "type": "boolean" },
-        "minAvailable": { "type": ["integer", "string"] },
-        "maxUnavailable": { "type": ["integer", "string"] }
+        "minAvailable": { "type": ["integer", "string", "null"] },
+        "maxUnavailable": { "type": ["integer", "string", "null"] }
       }
     },
     "networkPolicy": {

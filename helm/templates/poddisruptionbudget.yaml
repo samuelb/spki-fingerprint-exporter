@@ -1,6 +1,18 @@
 {{- if .Values.podDisruptionBudget.enabled }}
-{{- if and .Values.podDisruptionBudget.minAvailable .Values.podDisruptionBudget.maxUnavailable }}
-{{- fail "podDisruptionBudget accepts either minAvailable or maxUnavailable, not both" }}
+{{- /* Compare as strings: 0 is a valid value, but empty for `with`, `if` and `default`. */ -}}
+{{- $minAvailable := "" }}
+{{- $maxUnavailable := "" }}
+{{- if not (kindIs "invalid" .Values.podDisruptionBudget.minAvailable) }}
+{{- $minAvailable = toString .Values.podDisruptionBudget.minAvailable }}
+{{- end }}
+{{- if not (kindIs "invalid" .Values.podDisruptionBudget.maxUnavailable) }}
+{{- $maxUnavailable = toString .Values.podDisruptionBudget.maxUnavailable }}
+{{- end }}
+{{- if and (ne $minAvailable "") (ne $maxUnavailable "") }}
+{{- fail "podDisruptionBudget accepts either minAvailable or maxUnavailable, not both; set the other one to \"\"" }}
+{{- end }}
+{{- if and (eq $minAvailable "") (eq $maxUnavailable "") }}
+{{- fail "podDisruptionBudget needs one of minAvailable or maxUnavailable" }}
 {{- end }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -9,11 +21,10 @@ metadata:
   labels:
     {{- include "spki-fingerprint-exporter.labels" . | nindent 4 }}
 spec:
-  {{- with .Values.podDisruptionBudget.minAvailable }}
-  minAvailable: {{ . }}
-  {{- end }}
-  {{- with .Values.podDisruptionBudget.maxUnavailable }}
-  maxUnavailable: {{ . }}
+  {{- if ne $minAvailable "" }}
+  minAvailable: {{ $minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ $maxUnavailable }}
   {{- end }}
   selector:
     matchLabels:

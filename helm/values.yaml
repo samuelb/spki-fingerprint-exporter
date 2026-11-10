@@ -174,8 +174,9 @@ resources: {}
   #   cpu: 100m
   #   memory: 128Mi
 
-# Create a PodDisruptionBudget. Only useful with more than one replica;
-# set either minAvailable or maxUnavailable.
+# Create a PodDisruptionBudget. Only useful with more than one replica.
+# Set exactly one of minAvailable and maxUnavailable (a number or a
+# percentage) and leave the other one empty ("").
 podDisruptionBudget:
   enabled: false
   minAvailable: 1
