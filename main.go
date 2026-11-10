@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -57,6 +58,11 @@ var (
 		"pop3s":       "995",
 		"sips":        "5061",
 	}
+
+	// targetScheme matches a URL scheme followed by "://" at the start of
+	// a target. Looking for "://" anywhere would mistake a URL inside the
+	// path or query of a schemeless target for the target's own scheme.
+	targetScheme = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*://`)
 )
 
 type Config struct {
@@ -199,7 +205,7 @@ func getFingerprint(ctx context.Context, target string, timeout time.Duration) (
 }
 
 func parseTarget(target string) (parsedTarget string, err error) {
-	if !strings.Contains(target, "://") {
+	if !targetScheme.MatchString(target) {
 		target = "//" + target
 	}
 
@@ -233,7 +239,22 @@ func parseTarget(target string) (parsedTarget string, err error) {
 		return "", fmt.Errorf("invalid port number %q", port)
 	}
 
-	return net.JoinHostPort(host, port), nil
+	// Normalize the result so that spellings of the same target share
+	// one target label: host names are case-insensitive and the port may
+	// carry leading zeros. A trailing dot is kept because it changes how
+	// the name is resolved (no search domains).
+	return net.JoinHostPort(normalizeHost(host), strconv.Itoa(portNumber)), nil
+}
+
+// normalizeHost lowercases a host name or IP address. The zone of an IPv6
+// address is an interface name and keeps its case.
+func normalizeHost(host string) string {
+	addr, zone, hasZone := strings.Cut(host, "%")
+	addr = strings.ToLower(addr)
+	if hasZone {
+		return addr + "%" + zone
+	}
+	return addr
 }
 
 func probeHandler(config Config, metrics *probeMetrics) http.HandlerFunc {

@@ -201,7 +201,7 @@ Things to keep in mind:
 
 | Metric | Description |
 |--------|-------------|
-| `spki_fingerprint{fingerprint, target}` | Always `1`. `fingerprint` is the base64 SHA-256 of the leaf certificate's SPKI, and `target` is the target as `host:port`. Only present if the probe succeeded |
+| `spki_fingerprint{fingerprint, target}` | Always `1`. `fingerprint` is the base64 SHA-256 of the leaf certificate's SPKI, and `target` is the target as `host:port`, with the host in lower case. Only present if the probe succeeded |
 | `probe_success` | `1` if the probe succeeded. `0` if the target was invalid or unreachable, or the TLS handshake failed |
 | `probe_duration_seconds` | How long the probe took |
 
