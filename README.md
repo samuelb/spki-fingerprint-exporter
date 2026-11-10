@@ -181,7 +181,12 @@ Things to keep in mind:
   STARTTLS services (SMTP on 25/587, IMAP on 143, plain LDAP on 389,
   PostgreSQL, …) are not supported.
 - The exporter uses Go's default TLS client settings, so the server must
-  support TLS 1.2 or newer.
+  support TLS 1.2 or newer with a forward-secret (ECDHE) key exchange.
+  Servers that only offer the static RSA key exchange fail the handshake.
+- A server that has both an ECDSA and an RSA certificate chooses one based
+  on what the client offers. The exporter, like most modern clients, is served
+  the ECDSA certificate, so the RSA key is never observed. Clients that pin
+  the RSA key are not covered by the fingerprint the exporter reports.
 - The target's hostname is sent as SNI. Targets given as IP addresses are
   probed without SNI, so a server that hosts several certificates returns
   its default one.
