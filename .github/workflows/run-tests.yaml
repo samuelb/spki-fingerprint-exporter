@@ -59,7 +59,9 @@ jobs:
         with:
           version: ${{ matrix.helm-version }}
       - name: Lint chart
-        run: helm lint ./helm
+        # Strict, like the release pipeline: warnings fail here rather
+        # than at release time.
+        run: helm lint --strict ./helm
       - name: Render default chart
         run: helm template test ./helm
       - name: Render configured chart on Kubernetes 1.19

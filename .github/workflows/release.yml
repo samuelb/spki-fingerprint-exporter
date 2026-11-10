@@ -4,11 +4,15 @@ name: Release
 # everything else happens automatically. The next version is derived
 # from conventional commits since the last stable tag (override via the
 # bump input), the Helm chart version is updated and committed, the tag
-# is created, binaries are built and attached to a GitHub release with
-# generated release notes, multi-arch Docker images are pushed with
-# SLSA provenance and SBOM attestations, and the Helm chart is
+# is created, binaries are built, multi-arch Docker images are pushed
+# with SLSA provenance and SBOM attestations, and the Helm chart is
 # published to ghcr.io as an OCI artifact. Images and chart are signed
-# with cosign (keyless, via the GitHub OIDC identity).
+# with cosign (keyless, via the GitHub OIDC identity). The GitHub
+# release with the binaries and generated release notes is created
+# last, once images and chart are available.
+#
+# Everything that can fail on the sources (tests, chart validation) runs
+# before the tag is pushed, so a failure there leaves no dangling tag.
 
 on:
   workflow_dispatch:
@@ -39,6 +43,9 @@ env:
 jobs:
   test:
     name: Test
+    # Releases are cut from main only; the other jobs depend on this one
+    # and are skipped with it.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -47,6 +54,17 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
       - name: Run tests
         run: make test
+      - uses: azure/setup-helm@v5
+        with:
+          version: v3.18.4
+      - name: Validate Helm chart
+        run: |
+          helm lint --strict ./helm
+          helm template release ./helm
+          helm template release ./helm \
+            --set serviceMonitor.enabled=true \
+            --set-string serviceMonitor.targets[0]=example.com:443 \
+            --set prometheusRule.enabled=true
 
   version:
     name: Bump version and tag
@@ -112,14 +130,9 @@ jobs:
           version: v3.18.4
       - name: Build for all platforms and create checksums
         run: make checksums
-      - name: Validate and package Helm chart
+      - name: Package Helm chart
+        # The chart was validated in the test job, before tagging.
         run: |
-          helm lint --strict ./helm
-          helm template release ./helm
-          helm template release ./helm \
-            --set serviceMonitor.enabled=true \
-            --set-string serviceMonitor.targets[0]=example.com:443 \
-            --set prometheusRule.enabled=true
           helm package ./helm --destination dist
           sha256sum dist/*.tgz | sed 's|dist/||' >> dist/sha256sums.txt
       - name: Upload artifacts
@@ -137,7 +150,9 @@ jobs:
 
   release:
     name: Create Release
-    needs: [version, build]
+    # Last, so that a release never points at images or a chart that
+    # failed to publish.
+    needs: [version, build, helm, docker]
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
