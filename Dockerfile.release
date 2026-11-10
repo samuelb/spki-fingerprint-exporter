@@ -11,7 +11,9 @@ COPY <<EOT /etc/group
 spki-exporter:x:1000:
 EOT
 
-COPY ./dist/spki-fingerprint-exporter-${TARGETOS}-${TARGETARCH} /spki-fingerprint-exporter
+# Set the mode explicitly: the release pipeline passes the binary between
+# jobs as a GitHub Actions artifact, which does not keep the executable bit.
+COPY --chmod=0755 ./dist/spki-fingerprint-exporter-${TARGETOS}-${TARGETARCH} /spki-fingerprint-exporter
 
 USER 1000:1000
 EXPOSE 3000/tcp

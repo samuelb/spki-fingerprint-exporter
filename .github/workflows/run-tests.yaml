@@ -90,6 +90,11 @@ jobs:
           go-version-file: go.mod
       - name: Build linux/amd64 binary
         run: make linux/amd64
+      - name: Drop the executable bit
+        # The release pipeline hands the binary to the image build as a
+        # GitHub Actions artifact, which loses the executable bit. Do the
+        # same here so this job proves the image sets the mode itself.
+        run: chmod 0644 dist/spki-fingerprint-exporter-linux-amd64
       - name: Build image
         run: >-
           docker build -f Dockerfile.release
