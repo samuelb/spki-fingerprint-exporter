@@ -15,3 +15,6 @@
 # vendor/
 
 dist/
+
+# Binary written by `go build` in the repository root
+/spki-fingerprint-exporter

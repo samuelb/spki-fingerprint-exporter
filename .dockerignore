@@ -1,6 +1,7 @@
 .git
 .github
 dist
+/spki-fingerprint-exporter
 helm
 *.md
 Makefile
