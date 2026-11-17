@@ -269,12 +269,15 @@ groups:
     rules:
       # Pinning: example.com:443 presents a key other than the expected
       # one. Requiring probe_success == 1 keeps a failing probe from also
-      # firing this alert.
+      # firing this alert. ignoring(fingerprint, target) pairs each
+      # probe_success with the spki_fingerprint of the same scrape (same
+      # job, instance and any other target labels), so one scrape seeing
+      # the expected key cannot hide another scrape's mismatch.
       - alert: SpkiFingerprintMismatch
         expr: |
           probe_success{job="spki-fingerprint-exporter", instance="example.com:443"} == 1
-          unless on(instance)
-          spki_fingerprint{fingerprint="base64encodedsha256sumofspki="}
+          unless ignoring(fingerprint, target)
+          spki_fingerprint{job="spki-fingerprint-exporter", fingerprint="base64encodedsha256sumofspki="}
 
       # Change detection: a target presented more than one distinct
       # fingerprint within the last hour.

@@ -185,10 +185,15 @@ probe_duration_seconds 0.042
 changed fingerprint from an unreachable target:
 
 ```
-probe_success{instance="example.com:443"} == 1
-unless on(instance)
-spki_fingerprint{fingerprint="base64encodedsha256sumofspki="}
+probe_success{job="<fullname>", instance="example.com:443"} == 1
+unless ignoring(fingerprint, target)
+spki_fingerprint{job="<fullname>", fingerprint="base64encodedsha256sumofspki="}
 ```
+
+`ignoring(fingerprint, target)` pairs each `probe_success` with the
+`spki_fingerprint` of the same scrape (same job, instance, pod and so on).
+With several replicas, each pod is scraped separately, so a pod that sees the
+expected key does not hide a mismatch seen by another.
 
 With `serviceMonitor.selfMonitor` enabled (the default), the exporter's own
 `/metrics` endpoint is scraped as well, providing operational metrics such as
