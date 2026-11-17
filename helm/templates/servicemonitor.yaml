@@ -1,7 +1,4 @@
 {{- if .Values.serviceMonitor.enabled }}
-{{- if and (not .Values.serviceMonitor.targets) (not .Values.serviceMonitor.selfMonitor) }}
-{{- fail "serviceMonitor.targets must contain at least one target when serviceMonitor is enabled and selfMonitor is disabled" }}
-{{- end }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:

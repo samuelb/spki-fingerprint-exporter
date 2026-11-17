@@ -1,12 +1,4 @@
 {{- if .Values.ingress.enabled -}}
-{{- if not .Values.ingress.hosts -}}
-{{- fail "ingress.hosts must contain at least one host when ingress is enabled" -}}
-{{- end -}}
-{{- range .Values.ingress.hosts -}}
-{{- if not .paths -}}
-{{- fail (printf "ingress host %q must contain at least one path" .host) -}}
-{{- end -}}
-{{- end -}}
 {{- $fullName := include "spki-fingerprint-exporter.fullname" . -}}
 {{- $apiVersion := include "spki-fingerprint-exporter.ingress.apiVersion" . -}}
 apiVersion: {{ $apiVersion }}
