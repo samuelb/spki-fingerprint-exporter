@@ -270,13 +270,26 @@ func TestGetFingerprintNonTLSTarget(t *testing.T) {
 	}
 }
 
+// testConfig returns a complete configuration, as getConfig builds it,
+// with the given probe concurrency limit.
+func testConfig(maxConcurrent int) Config {
+	return Config{
+		ListenAddress:       defaultListenAddress,
+		DefaultTimeout:      5 * time.Second,
+		MaxTimeout:          defaultMaxTimeout,
+		MaxConcurrentProbes: maxConcurrent,
+		LogLevel:            slog.LevelInfo,
+		LogFormat:           defaultLogFormat,
+	}
+}
+
 func TestProbeHandler(t *testing.T) {
 	ts := httptest.NewTLSServer(http.NotFoundHandler())
 	defer ts.Close()
 
 	metricsRegistry := prometheus.NewRegistry()
 	handler := probeHandler(
-		Config{DefaultTimeout: 5 * time.Second, MaxConcurrentProbes: 2},
+		testConfig(2),
 		newProbeMetrics(metricsRegistry),
 	)
 
@@ -400,7 +413,7 @@ func TestProbeHandlerConcurrencyLimit(t *testing.T) {
 
 	metricsRegistry := prometheus.NewRegistry()
 	handler := probeHandler(
-		Config{DefaultTimeout: 5 * time.Second, MaxConcurrentProbes: 1},
+		testConfig(1),
 		newProbeMetrics(metricsRegistry),
 	)
 
@@ -460,7 +473,7 @@ func TestProbeHandlerConcurrencyLimit(t *testing.T) {
 func TestHTTPRoutes(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	handler := newHandler(
-		Config{DefaultTimeout: time.Second, MaxConcurrentProbes: 1},
+		testConfig(1),
 		registry,
 		registry,
 	)
@@ -498,7 +511,7 @@ func TestHTTPRoutes(t *testing.T) {
 func TestBuildInfoMetric(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	handler := newHandler(
-		Config{DefaultTimeout: time.Second, MaxConcurrentProbes: 1},
+		testConfig(1),
 		registry,
 		registry,
 	)
@@ -519,7 +532,7 @@ func TestRootEscapesVersion(t *testing.T) {
 
 	registry := prometheus.NewRegistry()
 	handler := newHandler(
-		Config{DefaultTimeout: time.Second, MaxConcurrentProbes: 1},
+		testConfig(1),
 		registry,
 		registry,
 	)

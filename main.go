@@ -258,15 +258,7 @@ func normalizeHost(host string) string {
 }
 
 func probeHandler(config Config, metrics *probeMetrics) http.HandlerFunc {
-	maxConcurrent := config.MaxConcurrentProbes
-	if maxConcurrent <= 0 {
-		maxConcurrent = defaultMaxConcurrent
-	}
-	maxTimeout := config.MaxTimeout
-	if maxTimeout <= 0 {
-		maxTimeout = defaultMaxTimeout
-	}
-	probeSlots := make(chan struct{}, maxConcurrent)
+	probeSlots := make(chan struct{}, config.MaxConcurrentProbes)
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -281,7 +273,7 @@ func probeHandler(config Config, metrics *probeMetrics) http.HandlerFunc {
 			return
 		}
 
-		timeout, err := getScrapeTimeout(r, config.DefaultTimeout, maxTimeout)
+		timeout, err := getScrapeTimeout(r, config.DefaultTimeout, config.MaxTimeout)
 		if err != nil {
 			slog.Warn("Failed to get scrape timeout", "error", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -290,13 +282,9 @@ func probeHandler(config Config, metrics *probeMetrics) http.HandlerFunc {
 
 		select {
 		case probeSlots <- struct{}{}:
-			if metrics != nil {
-				metrics.active.Inc()
-			}
+			metrics.active.Inc()
 		default:
-			if metrics != nil {
-				metrics.rejected.Inc()
-			}
+			metrics.rejected.Inc()
 			w.Header().Set("Retry-After", "1")
 			http.Error(w, "maximum concurrent probes reached", http.StatusServiceUnavailable)
 			return
@@ -306,19 +294,15 @@ func probeHandler(config Config, metrics *probeMetrics) http.HandlerFunc {
 			// Deferred so that a panicking probe does not leak its slot.
 			defer func() {
 				<-probeSlots
-				if metrics != nil {
-					metrics.active.Dec()
-				}
+				metrics.active.Dec()
 			}()
 			return runProbe(r.Context(), target, timeout)
 		}()
-		if metrics != nil {
-			outcome := "failure"
-			if result.success {
-				outcome = "success"
-			}
-			metrics.total.WithLabelValues(outcome).Inc()
+		outcome := "failure"
+		if result.success {
+			outcome = "success"
 		}
+		metrics.total.WithLabelValues(outcome).Inc()
 
 		promhttp.HandlerFor(result.registry(), promhttp.HandlerOpts{}).ServeHTTP(w, r)
 	}
