@@ -78,6 +78,18 @@ extensions/v1beta1
 {{- end -}}
 
 {{/*
+Return the appropriate apiVersion for PodDisruptionBudget: policy/v1 needs
+Kubernetes 1.21, older clusters only serve policy/v1beta1.
+*/}}
+{{- define "spki-fingerprint-exporter.podDisruptionBudget.apiVersion" -}}
+{{- if semverCompare ">=1.21-0" .Capabilities.KubeVersion.Version -}}
+policy/v1
+{{- else -}}
+policy/v1beta1
+{{- end -}}
+{{- end -}}
+
+{{/*
 Settings shared by every ServiceMonitor endpoint: how Prometheus reaches
 the exporter when its listener is protected by a web config.
 */}}

@@ -71,6 +71,14 @@ jobs:
         run: helm lint --strict ./helm
       - name: Render default chart
         run: helm template test ./helm
+      # The grep fails the step unless the PodDisruptionBudget uses the API
+      # version that cluster serves.
+      - name: Render PodDisruptionBudget on Kubernetes 1.21
+        run: >-
+          helm template test ./helm
+          --kube-version 1.21.0
+          --set podDisruptionBudget.enabled=true
+          | grep -x 'apiVersion: policy/v1'
       - name: Render configured chart on Kubernetes 1.19
         run: >-
           helm template test ./helm
@@ -81,6 +89,8 @@ jobs:
           --set serviceMonitor.enabled=true
           --set serviceMonitor.targets[0]=example.com:443
           --set prometheusRule.enabled=true
+          --set podDisruptionBudget.enabled=true
+          | grep -x 'apiVersion: policy/v1beta1'
       - name: Render legacy ingress on Kubernetes 1.13
         run: >-
           helm template test ./helm
@@ -88,6 +98,8 @@ jobs:
           --set ingress.enabled=true
           --set ingress.hosts[0].host=example.test
           --set ingress.hosts[0].paths[0]=/
+          --set podDisruptionBudget.enabled=true
+          | grep -x 'apiVersion: policy/v1beta1'
 
   chart-install:
     name: Chart install test

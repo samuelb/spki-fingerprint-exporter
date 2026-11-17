@@ -14,7 +14,7 @@
 {{- if and (eq $minAvailable "") (eq $maxUnavailable "") }}
 {{- fail "podDisruptionBudget needs one of minAvailable or maxUnavailable" }}
 {{- end }}
-apiVersion: policy/v1
+apiVersion: {{ include "spki-fingerprint-exporter.podDisruptionBudget.apiVersion" . }}
 kind: PodDisruptionBudget
 metadata:
   name: {{ include "spki-fingerprint-exporter.fullname" . }}
