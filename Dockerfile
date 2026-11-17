@@ -21,14 +21,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM scratch
 
-COPY <<EOT /etc/passwd
-spki-exporter:x:1000:1000:spki-exporter:/app:/sbin/nologin
-EOT
-
-COPY <<EOT /etc/group
-spki-exporter:x:1000:
-EOT
-
 COPY --from=build /out/spki-fingerprint-exporter /spki-fingerprint-exporter
 
 USER 1000:1000
