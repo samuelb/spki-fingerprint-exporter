@@ -484,14 +484,20 @@ func TestHTTPRoutes(t *testing.T) {
 		path        string
 		status      int
 		contentType string
+		allow       string
 	}{
-		{"root", http.MethodGet, "/", http.StatusOK, "text/html; charset=utf-8"},
-		{"healthy", http.MethodGet, "/-/healthy", http.StatusOK, "text/plain; charset=utf-8"},
-		{"healthy head", http.MethodHead, "/-/healthy", http.StatusOK, "text/plain; charset=utf-8"},
-		{"ready", http.MethodGet, "/-/ready", http.StatusOK, "text/plain; charset=utf-8"},
-		{"unknown", http.MethodGet, "/unknown", http.StatusNotFound, "text/plain; charset=utf-8"},
-		{"root method", http.MethodPost, "/", http.StatusMethodNotAllowed, "text/plain; charset=utf-8"},
-		{"probe method", http.MethodPost, "/probe", http.StatusMethodNotAllowed, "text/plain; charset=utf-8"},
+		{"root", http.MethodGet, "/", http.StatusOK, "text/html; charset=utf-8", ""},
+		{"root head", http.MethodHead, "/", http.StatusOK, "text/html; charset=utf-8", ""},
+		{"healthy", http.MethodGet, "/-/healthy", http.StatusOK, "text/plain; charset=utf-8", ""},
+		{"healthy head", http.MethodHead, "/-/healthy", http.StatusOK, "text/plain; charset=utf-8", ""},
+		{"ready", http.MethodGet, "/-/ready", http.StatusOK, "text/plain; charset=utf-8", ""},
+		{"probe head", http.MethodHead, "/probe", http.StatusBadRequest, "text/plain; charset=utf-8", ""},
+		{"unknown", http.MethodGet, "/unknown", http.StatusNotFound, "text/plain; charset=utf-8", ""},
+		{"probe subpath", http.MethodGet, "/probe/extra", http.StatusNotFound, "text/plain; charset=utf-8", ""},
+		{"root method", http.MethodPost, "/", http.StatusMethodNotAllowed, "text/plain; charset=utf-8", "GET, HEAD"},
+		{"probe method", http.MethodPost, "/probe", http.StatusMethodNotAllowed, "text/plain; charset=utf-8", "GET, HEAD"},
+		{"healthy method", http.MethodPut, "/-/healthy", http.StatusMethodNotAllowed, "text/plain; charset=utf-8", "GET, HEAD"},
+		{"ready method", http.MethodDelete, "/-/ready", http.StatusMethodNotAllowed, "text/plain; charset=utf-8", "GET, HEAD"},
 	}
 
 	for _, test := range tests {
@@ -503,6 +509,9 @@ func TestHTTPRoutes(t *testing.T) {
 			}
 			if contentType := w.Header().Get("Content-Type"); contentType != test.contentType {
 				t.Errorf("Content-Type = %q, want %q", contentType, test.contentType)
+			}
+			if allow := w.Header().Get("Allow"); allow != test.allow {
+				t.Errorf("Allow = %q, want %q", allow, test.allow)
 			}
 		})
 	}

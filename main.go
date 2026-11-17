@@ -261,12 +261,6 @@ func probeHandler(config Config, metrics *probeMetrics) http.HandlerFunc {
 	probeSlots := make(chan struct{}, config.MaxConcurrentProbes)
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			w.Header().Set("Allow", "GET, HEAD")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
 		target := r.URL.Query().Get("target")
 		if target == "" {
 			http.Error(w, "target parameter is required", http.StatusBadRequest)
@@ -435,19 +429,12 @@ func newHandler(config Config, registerer prometheus.Registerer, gatherer promet
 	mux := http.NewServeMux()
 	metricsHandler := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
 	mux.Handle("/metrics", promhttp.InstrumentMetricHandler(registerer, metricsHandler))
-	mux.HandleFunc("/probe", probeHandler(config, newProbeMetrics(registerer)))
-	mux.HandleFunc("/-/healthy", healthHandler)
-	mux.HandleFunc("/-/ready", healthHandler)
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			w.Header().Set("Allow", "GET, HEAD")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
+	// GET patterns also match HEAD; the mux answers other methods with
+	// 405 and an Allow header.
+	mux.HandleFunc("GET /probe", probeHandler(config, newProbeMetrics(registerer)))
+	mux.HandleFunc("GET /-/healthy", healthHandler)
+	mux.HandleFunc("GET /-/ready", healthHandler)
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = fmt.Fprintf(w, `<html>
 			<head><title>SPKI fingerprint exporter</title></head>
@@ -462,12 +449,7 @@ func newHandler(config Config, registerer prometheus.Registerer, gatherer promet
 	return mux
 }
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		w.Header().Set("Allow", "GET, HEAD")
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte("OK\n"))
 }
