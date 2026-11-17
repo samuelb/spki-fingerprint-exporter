@@ -45,32 +45,10 @@ jobs:
   test:
     name: Test
     # Releases are cut from main only; the other jobs depend on this one
-    # and are skipped with it.
+    # and are skipped with it. Runs the full CI workflow, so a release is
+    # gated on the same checks as a pull request.
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Read the Go release line from go.mod
-        id: go
-        # 1.26.0 -> 1.26, so that setup-go resolves the latest patch
-        # release of the minimum supported Go version.
-        run: echo "version=$(sed -n 's/^go \([0-9]*\.[0-9]*\).*/\1/p' go.mod)" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: ${{ steps.go.outputs.version }}
-      - name: Run tests
-        run: make test
-      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
-        with:
-          version: v3.18.4
-      - name: Validate Helm chart
-        run: |
-          helm lint --strict ./helm
-          helm template release ./helm
-          helm template release ./helm \
-            --set serviceMonitor.enabled=true \
-            --set-string serviceMonitor.targets[0]=example.com:443 \
-            --set prometheusRule.enabled=true
+    uses: ./.github/workflows/run-tests.yaml
 
   version:
     name: Bump version and tag
