@@ -47,15 +47,7 @@
     },
     "containerPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
     "listenHost": { "type": "string" },
-    "healthProbes": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": ["livenessPath", "readinessPath"],
-      "properties": {
-        "livenessPath": { "type": "string", "pattern": "^/" },
-        "readinessPath": { "type": "string", "pattern": "^/" }
-      }
-    },
+    "healthProbes": false,
     "env": {
       "type": "array",
       "items": {

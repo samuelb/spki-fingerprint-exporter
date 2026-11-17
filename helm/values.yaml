@@ -38,12 +38,8 @@ containerPort: 3000
 # Optional interface/address to bind. The container port is always appended.
 listenHost: ""
 
-healthProbes:
-  livenessPath: /-/healthy
-  readinessPath: /-/ready
-
 # Full livenessProbe/readinessProbe specs. When set, they replace the
-# default httpGet probes built from healthProbes above, e.g.:
+# default httpGet probes on /-/healthy and /-/ready, e.g.:
 # livenessProbe:
 #   httpGet:
 #     path: /-/healthy

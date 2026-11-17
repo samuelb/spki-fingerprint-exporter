@@ -50,10 +50,8 @@ port, it is derived from the URL scheme.
 | `service.annotations` | Service annotations | `{}` |
 | `containerPort` | Port the exporter listens on; also sets `LISTEN_ADDRESS` | `3000` |
 | `listenHost` | Optional interface/address to bind (the container port is appended) | `""` |
-| `healthProbes.livenessPath` | Liveness probe path | `/-/healthy` |
-| `healthProbes.readinessPath` | Readiness probe path | `/-/ready` |
-| `livenessProbe` | Full liveness probe spec; replaces the default httpGet probe when set | `{}` |
-| `readinessProbe` | Full readiness probe spec; replaces the default httpGet probe when set | `{}` |
+| `livenessProbe` | Full liveness probe spec; replaces the default httpGet probe on `/-/healthy` when set | `{}` |
+| `readinessProbe` | Full readiness probe spec; replaces the default httpGet probe on `/-/ready` when set | `{}` |
 | `env` | Additional environment variables (e.g. `DEFAULT_TIMEOUT`, `MAX_CONCURRENT_PROBES`) | `[]` |
 | `extraVolumes` | Additional pod volumes, e.g. a Secret holding a web config file | `[]` |
 | `extraVolumeMounts` | Additional volume mounts for the exporter container | `[]` |
@@ -97,8 +95,11 @@ Notes:
 - `containerPort` sets both the container port and the `LISTEN_ADDRESS`
   environment variable; do not add `LISTEN_ADDRESS` to `env` separately
   (the chart fails rendering if you do).
-- For exporter images predating the health endpoints, set
-  `healthProbes.livenessPath` and `healthProbes.readinessPath` to `/`.
+- Exporter images older than 0.6.0 have no `/-/healthy` and `/-/ready`
+  endpoints. To run one, set `livenessProbe` and `readinessProbe` to probes
+  on `/`, e.g. `livenessProbe: {httpGet: {path: /, port: http}}`. The former
+  `healthProbes.livenessPath` and `healthProbes.readinessPath` values were
+  removed; the chart rejects `healthProbes` if it is still set.
 
 ## Alerting rules
 
