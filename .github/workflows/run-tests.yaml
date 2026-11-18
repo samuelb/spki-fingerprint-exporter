@@ -122,7 +122,7 @@ jobs:
           --build-arg TARGETOS=linux --build-arg TARGETARCH=amd64
           -t spki-fingerprint-exporter:ci .
       - name: Create kind cluster
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
       - name: Load image into kind
         run: kind load docker-image spki-fingerprint-exporter:ci --name chart-testing
       - name: Install chart
